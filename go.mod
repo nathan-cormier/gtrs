@@ -1,4 +1,4 @@
-module github.com/dranikpg/gtrs
+module github.com/nathan-cormier/gtrs
 
 go 1.20
 
