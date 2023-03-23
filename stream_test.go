@@ -3,8 +3,9 @@ package gtrs
 import (
 	"context"
 	"testing"
+	"time"
 
-	"github.com/alicebob/miniredis/v2"
+	"github.com/nathan-cormier/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 )
@@ -32,7 +33,7 @@ func TestStream_RangeLenSimple(t *testing.T) {
 	ms, rdb := startMiniredis(t)
 	ctx := context.TODO()
 
-	stream := NewStream[Person](rdb, "s1")
+	stream := NewStream[Person](rdb, "s1", 0)
 
 	// Just a check for codecov :)
 	assert.Equal(t, "s1", stream.Key())
@@ -77,7 +78,7 @@ func TestStream_RangeInterval(t *testing.T) {
 	ms, rdb := startMiniredis(t)
 	ctx := context.TODO()
 
-	stream := NewStream[Person](rdb, "s1")
+	stream := NewStream[Person](rdb, "s1", 0)
 
 	ms.XAdd("s1", "0-1", []string{"name", "First"})
 	ms.XAdd("s1", "0-2", []string{"name", "Second"})
@@ -113,10 +114,11 @@ func TestStream_Add(t *testing.T) {
 	_, rdb := startMiniredis(t)
 	ctx := context.TODO()
 
-	stream := NewStream[Person](rdb, "s1")
+	stream := NewStream[Person](rdb, "s1", 0)
 
 	// Add first entry.
-	stream.Add(ctx, Person{Name: "First"}, "0-1")
+	_, err := stream.Add(ctx, Person{Name: "First"}, "0-1")
+	assert.NoError(t, err)
 
 	len, err := stream.Len(ctx)
 	assert.Nil(t, err)
@@ -129,7 +131,8 @@ func TestStream_Add(t *testing.T) {
 	}, vals)
 
 	// Add second entry.
-	stream.Add(ctx, Person{Name: "Second"})
+	_, err = stream.Add(ctx, Person{Name: "Second"})
+	assert.NoError(t, err)
 
 	len, err = stream.Len(ctx)
 	assert.Nil(t, err)
@@ -142,7 +145,7 @@ func TestStream_Error(t *testing.T) {
 
 	ms.Close()
 
-	stream := NewStream[Person](rdb, "s1")
+	stream := NewStream[Person](rdb, "s1", 0)
 
 	_, err := stream.Range(ctx, "-", "+")
 	assert.NotNil(t, err)
@@ -155,4 +158,58 @@ func TestStream_Error(t *testing.T) {
 	_, err = stream.Add(ctx, Person{})
 	assert.NotNil(t, err)
 	assert.IsType(t, ReadError{}, err)
+}
+
+func TestStream_TTL(t *testing.T) {
+	ms, rdb := startMiniredis(t)
+	ctx := context.TODO()
+	ts := time.Date(2023, 1, 1, 4, 4, 5, 4000000, time.UTC)
+	defer func() { now = time.Now }()
+	now = func() time.Time {
+		return ts
+	}
+	ms.SetTime(ts)
+
+	ttl := 10 * time.Second
+	stream := NewStream[Person](rdb, "s1", ttl)
+	// Add first entry.
+	_, err := stream.Add(ctx, Person{Name: "First"})
+	assert.NoError(t, err)
+	vals, err := stream.Range(ctx, "-", "+")
+	assert.NoError(t, err)
+	assert.Len(t, vals, 1)
+
+	// Wait a few seconds and add a second entry.
+	ts = ts.Add(2 * time.Second)
+	ms.SetTime(ts)
+	_, err = stream.Add(ctx, Person{Name: "Second"})
+	vals, err = stream.Range(ctx, "-", "+")
+	assert.NoError(t, err)
+	assert.Len(t, vals, 2)
+
+	// Wait past the TTL and add a third entry.
+	ts = ts.Add(ttl)
+	ms.SetTime(ts)
+	_, err = stream.Add(ctx, Person{Name: "Third"})
+	assert.NoError(t, err)
+
+	vals, err = stream.Range(ctx, "-", "+")
+	assert.NoError(t, err)
+	assert.Len(t, vals, 2) // first entry should have expired already
+	assert.Equal(t, vals[0].Stream, "s1")
+	assert.Equal(t, vals[0].Data.Name, "Second")
+	assert.Equal(t, vals[1].Stream, "s1")
+	assert.Equal(t, vals[1].Data.Name, "Third")
+
+	// Wait longer and add a fourth entry.
+	ts = ts.Add(ttl + time.Millisecond)
+	ms.SetTime(ts)
+	_, err = stream.Add(ctx, Person{Name: "Fourth"})
+	assert.NoError(t, err)
+
+	vals, err = stream.Range(ctx, "-", "+")
+	assert.NoError(t, err)
+	assert.Len(t, vals, 1) // only the latest entry should still be in the stream
+	assert.Equal(t, vals[0].Stream, "s1")
+	assert.Equal(t, vals[0].Data.Name, "Fourth")
 }

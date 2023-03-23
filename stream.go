@@ -2,19 +2,29 @@ package gtrs
 
 import (
 	"context"
+	"strconv"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
+
+// now is defined here so it can be overridden in unit tests
+var now = time.Now
 
 // Stream represents a redis stream with messages of type T.
 type Stream[T any] struct {
 	client redis.Cmdable
 	stream string
+	ttl    time.Duration
 }
 
 // Create a new stream with messages of type T.
-func NewStream[T any](client redis.Cmdable, stream string) Stream[T] {
-	return Stream[T]{client: client, stream: stream}
+// TTL is an optional parameter to setup expiration for stream messages,
+// it only only works as expected when a non-custom id is used to Add a message.
+// TTL can be zero to disable expiration.
+// Note that TTL is performed when messages are Added, so Range requests won't clean up old messages.
+func NewStream[T any](client redis.Cmdable, stream string, ttl time.Duration) Stream[T] {
+	return Stream[T]{client: client, stream: stream, ttl: ttl}
 }
 
 // Key returns the redis stream key.
@@ -28,11 +38,16 @@ func (s Stream[T]) Add(ctx context.Context, v T, idarg ...string) (string, error
 	if len(idarg) > 0 {
 		id = idarg[0]
 	}
+	minID := ""
+	if s.ttl > 0 {
+		minID = strconv.Itoa(int(now().Add(-s.ttl).UnixMilli()))
+	}
 
 	id, err := s.client.XAdd(ctx, &redis.XAddArgs{
 		Stream: s.stream,
 		Values: structToMap(v),
 		ID:     id,
+		MinID:  minID,
 	}).Result()
 
 	if err != nil {
