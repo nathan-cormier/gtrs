@@ -8,6 +8,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+var NoExpiration = time.Duration(0)
+
 // now is defined here so it can be overridden in unit tests
 var now = time.Now
 
