@@ -109,7 +109,8 @@ errors.Is(msg.Err, errMyTypeFailedToParse)
 Streams are simple wrappers for basic redis commands on a stream.
 
 ```go
-stream := NewStream[Event](rdb, "my-stream")
+ttl := time.Hour
+stream := NewStream[Event](rdb, "my-stream", ttl)
 stream.Add(ctx, Event{
   Kind:     "Example event",
   Priority: 1,
