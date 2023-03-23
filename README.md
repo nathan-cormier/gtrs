@@ -116,6 +116,7 @@ stream.Add(ctx, Event{
   Priority: 1,
 })
 ```
+The TTL parameter will evict stream entries after the specified duration has elapsed (or it can be set to `NoExpiration`).
 
 ### Installation
 
