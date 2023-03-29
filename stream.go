@@ -80,6 +80,27 @@ func (s Stream[T]) Range(ctx context.Context, from, to string, count ...int64) (
 	return msgs, nil
 }
 
+// RevRange returns a portion of the stream in reverse order compared to Range. Calls XREVRANGE.
+func (s Stream[T]) RevRange(ctx context.Context, from, to string, count ...int64) ([]Message[T], error) {
+	var redisSlice []redis.XMessage
+	var err error
+	if len(count) == 0 {
+		redisSlice, err = s.client.XRevRange(ctx, s.stream, from, to).Result()
+	} else {
+		redisSlice, err = s.client.XRevRangeN(ctx, s.stream, from, to, count[0]).Result()
+	}
+
+	if err != nil {
+		return nil, ReadError{Err: err}
+	}
+
+	msgs := make([]Message[T], len(redisSlice))
+	for i, msg := range redisSlice {
+		msgs[i] = toMessage[T](msg, s.stream)
+	}
+	return msgs, nil
+}
+
 // Len returns the current stream length. Calls XLEN.
 func (s Stream[T]) Len(ctx context.Context) (int64, error) {
 	len, err := s.client.XLen(ctx, s.stream).Result()

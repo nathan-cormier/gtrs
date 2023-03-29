@@ -63,6 +63,16 @@ func TestStream_RangeLenSimple(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, int64(2), len)
 
+	values, err = stream.RevRange(ctx, "+", "-")
+	assert.Nil(t, err)
+	assert.Equal(t, []Message[Person]{
+		{ID: "0-2", Stream: "s1", Data: Person{Name: "Second"}},
+		{ID: "0-1", Stream: "s1", Data: Person{Name: "First"}},
+	}, values)
+	len, err = stream.Len(ctx)
+	assert.Nil(t, err)
+	assert.Equal(t, int64(2), len)
+
 	// Add third entry.
 	ms.XAdd("s1", "0-3", []string{"name", "Third"})
 
@@ -70,6 +80,13 @@ func TestStream_RangeLenSimple(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, []Message[Person]{
 		{ID: "0-1", Stream: "s1", Data: Person{Name: "First"}},
+		{ID: "0-2", Stream: "s1", Data: Person{Name: "Second"}},
+	}, values)
+
+	values, err = stream.RevRange(ctx, "+", "-", 2)
+	assert.Nil(t, err)
+	assert.Equal(t, []Message[Person]{
+		{ID: "0-3", Stream: "s1", Data: Person{Name: "Third"}},
 		{ID: "0-2", Stream: "s1", Data: Person{Name: "Second"}},
 	}, values)
 }
