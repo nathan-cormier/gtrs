@@ -37,7 +37,8 @@ func (nc *NonParsable) FromMap(map[string]any) error {
 
 func TestUtils_convertStructToMap_Simple(t *testing.T) {
 	p1 := Person{Name: "Vlad", Age: 19, Height: 172.0}
-	m1 := structToMap(p1)
+	m1, err := structToMap(p1)
+	assert.NoError(t, err)
 
 	assert.Equal(t, map[string]any{
 		"name":   "Vlad",
@@ -75,6 +76,7 @@ func TestUtils_convertMapToStruct_AllTypes(t *testing.T) {
 		N   int
 		D   time.Duration
 		T   time.Time
+		M   Metadata
 	}
 
 	m1 := map[string]any{
@@ -91,6 +93,7 @@ func TestUtils_convertMapToStruct_AllTypes(t *testing.T) {
 		"n":   123, // non string value
 		"d":   "3s",
 		"t":   "2023-03-29T15:25:47.089126Z",
+		"m":   `{"n":1234,"s":"string"}`,
 	}
 
 	var s1 AllTypes
@@ -109,11 +112,13 @@ func TestUtils_convertMapToStruct_AllTypes(t *testing.T) {
 		F64: 1.0,
 		D:   3 * time.Second,
 		T:   time.Date(2023, time.March, 29, 15, 25, 47, 89126000, time.UTC),
+		M:   Metadata{"s": "string", "n": float64(1234)},
 	}
 	assert.Equal(t, expected, s1)
 
 	// verify conversion in the other direction
-	m2 := structToMap(expected)
+	m2, err := structToMap(expected)
+	assert.NoError(t, err)
 	assert.Equal(t, m2, map[string]any{
 		"s":   "s",
 		"i":   int(1),
@@ -128,6 +133,7 @@ func TestUtils_convertMapToStruct_AllTypes(t *testing.T) {
 		"n":   0,
 		"d":   "3s",
 		"t":   "2023-03-29T15:25:47.089126Z",
+		"m":   `{"n":1234,"s":"string"}`,
 	})
 }
 

@@ -2,6 +2,7 @@ package gtrs
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -13,9 +14,13 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// Metadata is a type that allows serialization of generic structured
+// metadata within the stream events
+type Metadata map[string]any
+
 // ConvertibleTo is implemented by types that can convert themselves to a map.
 type ConvertibleTo interface {
-	ToMap() map[string]any
+	ToMap() (map[string]any, error)
 }
 
 // ConvertibleFrom is implemented by types that can load themselves from a map.
@@ -94,8 +99,22 @@ func (fpe FieldParseError) Unwrap() error {
 	return fpe.Err
 }
 
+type SerializeError struct {
+	Field string
+	Value any
+	Err   error
+}
+
+func (se SerializeError) Error() string {
+	return fmt.Sprintf("failed to serialize field %v with val %v, because %v", se.Field, se.Value, se.Err)
+}
+
+func (se SerializeError) Unwrap() error {
+	return se.Err
+}
+
 // structToMap convert a struct to a map.
-func structToMap(st any) map[string]any {
+func structToMap(st any) (map[string]any, error) {
 	if c, ok := st.(ConvertibleTo); ok {
 		return c.ToMap()
 	}
@@ -112,11 +131,21 @@ func structToMap(st any) map[string]any {
 			out[toSnakeCase(fieldType.Name)] = v.Format(time.RFC3339Nano)
 		case time.Duration:
 			out[toSnakeCase(fieldType.Name)] = v.String()
+		case Metadata:
+			js, err := json.Marshal(v)
+			if err != nil {
+				return nil, SerializeError{
+					Field: fieldType.Name,
+					Value: fieldValue.Interface(),
+					Err:   err,
+				}
+			}
+			out[toSnakeCase(fieldType.Name)] = string(js)
 		default:
 			out[toSnakeCase(fieldType.Name)] = fieldValue.Interface()
 		}
 	}
-	return out
+	return out, nil
 }
 
 // mapToStruct tries to convert a map to a struct.
@@ -190,6 +219,10 @@ func valueFromString(val reflect.Value, st string) (any, error) {
 		return time.Parse(time.RFC3339Nano, st)
 	case time.Duration:
 		return time.ParseDuration(st)
+	case Metadata:
+		m := Metadata{}
+		err := json.Unmarshal([]byte(st), &m)
+		return m, err
 	}
 	return nil, errors.New("unsupported field type")
 }

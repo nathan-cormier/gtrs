@@ -45,9 +45,14 @@ func (s Stream[T]) Add(ctx context.Context, v T, idarg ...string) (string, error
 		minID = strconv.Itoa(int(now().Add(-s.ttl).UnixMilli()))
 	}
 
-	id, err := s.client.XAdd(ctx, &redis.XAddArgs{
+	vals, err := structToMap(v)
+	if err != nil {
+		return "", err
+	}
+
+	id, err = s.client.XAdd(ctx, &redis.XAddArgs{
 		Stream: s.stream,
-		Values: structToMap(v),
+		Values: vals,
 		ID:     id,
 		MinID:  minID,
 	}).Result()
