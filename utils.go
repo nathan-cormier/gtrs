@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -106,7 +107,14 @@ func structToMap(st any) map[string]any {
 	for i := 0; i < rv.NumField(); i++ {
 		fieldValue := rv.Field(i)
 		fieldType := rt.Field(i)
-		out[toSnakeCase(fieldType.Name)] = fieldValue.Interface()
+		switch v := fieldValue.Interface().(type) {
+		case time.Time:
+			out[toSnakeCase(fieldType.Name)] = v.Format(time.RFC3339Nano)
+		case time.Duration:
+			out[toSnakeCase(fieldType.Name)] = v.String()
+		default:
+			out[toSnakeCase(fieldType.Name)] = fieldValue.Interface()
+		}
 	}
 	return out
 }
@@ -139,7 +147,7 @@ func mapToStruct(st any, data map[string]any) error {
 			continue
 		}
 
-		val, err := valueFromString(fieldRv.Type().Kind(), stval)
+		val, err := valueFromString(fieldRv, stval)
 		if err != nil {
 			return FieldParseError{Field: fieldRt.Name, Value: v, Err: err}
 		} else {
@@ -151,33 +159,37 @@ func mapToStruct(st any, data map[string]any) error {
 
 // Parse value from string
 // TODO: find a better solution. Maybe there is a library for this.
-func valueFromString(kd reflect.Kind, st string) (any, error) {
-	switch kd {
-	case reflect.String:
+func valueFromString(val reflect.Value, st string) (any, error) {
+	switch val.Interface().(type) {
+	case string:
 		return st, nil
-	case reflect.Bool:
+	case bool:
 		return strconv.ParseBool(st)
-	case reflect.Int:
+	case int:
 		v, err := strconv.ParseInt(st, 10, 0)
 		return int(v), err
-	case reflect.Uint:
+	case uint:
 		v, err := strconv.ParseUint(st, 10, 0)
 		return uint(v), err
-	case reflect.Int32:
+	case int32:
 		v, err := strconv.ParseInt(st, 10, 32)
 		return int32(v), err
-	case reflect.Uint32:
+	case uint32:
 		v, err := strconv.ParseUint(st, 10, 32)
 		return uint32(v), err
-	case reflect.Int64:
+	case int64:
 		return strconv.ParseInt(st, 10, 64)
-	case reflect.Uint64:
+	case uint64:
 		return strconv.ParseUint(st, 10, 64)
-	case reflect.Float32:
+	case float32:
 		v, err := strconv.ParseFloat(st, 32)
 		return float32(v), err
-	case reflect.Float64:
+	case float64:
 		return strconv.ParseFloat(st, 64)
+	case time.Time:
+		return time.Parse(time.RFC3339Nano, st)
+	case time.Duration:
+		return time.ParseDuration(st)
 	}
 	return nil, errors.New("unsupported field type")
 }
