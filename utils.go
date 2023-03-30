@@ -15,7 +15,8 @@ import (
 )
 
 // Metadata is a type that allows serialization of generic structured
-// metadata within the stream events
+// metadata within the stream entries. Any value that can be serialized
+// to JSON can be inserted here.
 type Metadata map[string]any
 
 // ConvertibleTo is implemented by types that can convert themselves to a map.
