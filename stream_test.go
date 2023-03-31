@@ -33,7 +33,7 @@ func TestStream_RangeLenSimple(t *testing.T) {
 	ms, rdb := startMiniredis(t)
 	ctx := context.TODO()
 
-	stream := NewStream[Person](rdb, "s1", NoExpiration)
+	stream := NewStream[Person](rdb, "s1", nil)
 
 	// Just a check for codecov :)
 	assert.Equal(t, "s1", stream.Key())
@@ -95,7 +95,7 @@ func TestStream_RangeInterval(t *testing.T) {
 	ms, rdb := startMiniredis(t)
 	ctx := context.TODO()
 
-	stream := NewStream[Person](rdb, "s1", NoExpiration)
+	stream := NewStream[Person](rdb, "s1", nil)
 
 	ms.XAdd("s1", "0-1", []string{"name", "First"})
 	ms.XAdd("s1", "0-2", []string{"name", "Second"})
@@ -131,7 +131,7 @@ func TestStream_Add(t *testing.T) {
 	_, rdb := startMiniredis(t)
 	ctx := context.TODO()
 
-	stream := NewStream[Person](rdb, "s1", NoExpiration)
+	stream := NewStream[Person](rdb, "s1", nil)
 
 	// Add first entry.
 	_, err := stream.Add(ctx, Person{Name: "First"}, "0-1")
@@ -162,7 +162,7 @@ func TestStream_Error(t *testing.T) {
 
 	ms.Close()
 
-	stream := NewStream[Person](rdb, "s1", NoExpiration)
+	stream := NewStream[Person](rdb, "s1", nil)
 
 	_, err := stream.Range(ctx, "-", "+")
 	assert.NotNil(t, err)
@@ -188,7 +188,7 @@ func TestStream_TTL(t *testing.T) {
 	ms.SetTime(ts)
 
 	ttl := 10 * time.Second
-	stream := NewStream[Person](rdb, "s1", ttl)
+	stream := NewStream[Person](rdb, "s1", &Options{ttl})
 	// Add first entry.
 	_, err := stream.Add(ctx, Person{Name: "First"})
 	assert.NoError(t, err)

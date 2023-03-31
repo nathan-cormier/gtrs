@@ -20,12 +20,21 @@ type Stream[T any] struct {
 	ttl    time.Duration
 }
 
+type Options struct {
+	// TTL is an optional parameter to specify how long entries stay in the stream before expiring,
+	// it only only works as expected when a non-custom id is used to Add a message.
+	// The default is No Expiration.
+	// Note that TTL is performed when messages are Added, so Range requests won't clean up old messages.
+	TTL time.Duration
+}
+
 // Create a new stream with messages of type T.
-// TTL is an optional parameter to setup expiration for stream messages,
-// it only only works as expected when a non-custom id is used to Add a message.
-// TTL can be zero to disable expiration.
-// Note that TTL is performed when messages are Added, so Range requests won't clean up old messages.
-func NewStream[T any](client redis.Cmdable, stream string, ttl time.Duration) Stream[T] {
+// Options are optional (the parameter can be nil to use defaults).
+func NewStream[T any](client redis.Cmdable, stream string, opt *Options) Stream[T] {
+	ttl := NoExpiration
+	if opt != nil {
+		ttl = opt.TTL
+	}
 	return Stream[T]{client: client, stream: stream, ttl: ttl}
 }
 
@@ -41,7 +50,7 @@ func (s Stream[T]) Add(ctx context.Context, v T, idarg ...string) (string, error
 		id = idarg[0]
 	}
 	minID := ""
-	if s.ttl > 0 {
+	if s.ttl > NoExpiration {
 		minID = strconv.Itoa(int(now().Add(-s.ttl).UnixMilli()))
 	}
 
