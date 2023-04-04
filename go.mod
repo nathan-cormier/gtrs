@@ -1,6 +1,6 @@
 module github.com/nathan-cormier/gtrs
 
-go 1.20
+go 1.18
 
 require (
 	github.com/nathan-cormier/miniredis/v2 v2.0.2
